@@ -1,0 +1,110 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [-496, -48],
+      "id": "308430a4-8d5a-456e-99a0-86b3c09c090c",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "YOUR_CALENDAR_ID@group.calendar.google.com",
+          "mode": "list",
+          "cachedResultName": "Mon agenda"
+        },
+        "limit": 5,
+        "timeMin": "={{ $now.plus({ hour: 24 }) }}",
+        "timeMax": "={{ $now.plus({ hour: 36 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [-208, -48],
+      "id": "207b89e8-a465-4f6c-9e24-6292c427308d",
+      "name": "Récupérer RDV J+1",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "GOOGLE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/* Code identique à ta version originale – logique conservée */\n\nfunction cleanPhone(raw) {\n  if (!raw) return null;\n  let p = raw.trim().replace(/[^\\d+]/g, '');\n  if (p.startsWith('0033')) p = '+' + p.slice(2);\n  if (p.startsWith('0') && p.length === 10) p = '+33' + p.slice(1);\n  return p;\n}\n\nfunction extractPhone(text) {\n  if (!text) return null;\n  const phoneRegex = /(?:\\+33|0033|0)\\s*[1-9](?:[\\s.\\-]*\\d{2}){4}/g;\n  const matches = text.match(phoneRegex);\n  return matches ? matches[0] : null;\n}\n\nreturn items.map(item => {\n  const ev = item.json;\n  const description = ev.description || '';\n  const summary = ev.summary || '';\n  const haystack = `${summary}\\n${description}`;\n\n  const phoneRaw = extractPhone(haystack);\n  const telephone_e164 = phoneRaw ? cleanPhone(phoneRaw) : null;\n\n  return {\n    json: {\n      ...ev,\n      telephone_e164\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [64, -48],
+      "id": "37c84f91-15c1-4cd0-87e0-ea4dd0a48491",
+      "name": "Extraction coordonnées client"
+    },
+    {
+      "parameters": {
+        "from": "+1XXXXXXXXXX",
+        "to": "={{ $json.telephone_e164 }}",
+        "message": "Salut {{ $json.prenom }},\n\nPetit rappel : tu as rendez-vous demain à {{ $json.start.dateTime.toDateTime().toFormat('HH:mm') }}.\n\nEn cas d’empêchement, merci de prévenir au 06XXXXXXXX.\n\nÀ demain 👋",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [368, -48],
+      "id": "c9e4861c-327a-481d-a052-dc3867015f4e",
+      "name": "Envoi SMS",
+      "credentials": {
+        "twilioApi": {
+          "id": "TWILIO_CREDENTIAL_ID",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Récupérer RDV J+1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Récupérer RDV J+1": {
+      "main": [
+        [
+          {
+            "node": "Extraction coordonnées client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraction coordonnées client": {
+      "main": [
+        [
+          {
+            "node": "Envoi SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
